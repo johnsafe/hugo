@@ -41,6 +41,8 @@ var SummaryLength = 70
 // SummaryDivider denotes where content summarization should end. The default is "<!--more-->".
 var SummaryDivider = []byte("<!--more-->")
 
+var summaryDividerAndNewLines = []byte("<!--more-->\n\n")
+
 // Blackfriday holds configuration values for Blackfriday rendering.
 type Blackfriday struct {
 	Smartypants                      bool
@@ -391,7 +393,11 @@ func WordCount(s string) map[string]int {
 
 // RemoveSummaryDivider removes summary-divider <!--more--> from content.
 func RemoveSummaryDivider(content []byte) []byte {
-	return bytes.Replace(content, SummaryDivider, []byte(""), -1)
+	b := bytes.Replace(content, summaryDividerAndNewLines, []byte(""), 1)
+	if len(b) != len(content) {
+		return b
+	}
+	return bytes.Replace(content, SummaryDivider, []byte(""), 1)
 }
 
 // TruncateWordsByRune truncates words by runes.

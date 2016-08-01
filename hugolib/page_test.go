@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/hugo/helpers"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var emptyPage = ""
@@ -535,13 +536,15 @@ func checkTruncation(t *testing.T, page *Page, shouldBe bool, msg string) {
 }
 
 func TestCreateNewPage(t *testing.T) {
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePage))
-	p.Convert()
+	s := newSiteFromSources("simple.md", simplePage)
 
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
 
 	assert.False(t, p.IsHome)
 	checkPageTitle(t, p, "Simple")
@@ -553,29 +556,34 @@ func TestCreateNewPage(t *testing.T) {
 }
 
 func TestPageWithDelimiter(t *testing.T) {
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithSummaryDelimiter))
-	p.Convert()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithSummaryDelimiter)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
+
 	checkPageTitle(t, p, "Simple")
 	checkPageContent(t, p, "<p>Summary Next Line</p>\n\n<p>Some more text</p>\n")
-	checkPageSummary(t, p, "<p>Summary Next Line</p>\n")
+	checkPageSummary(t, p, "<p>Summary Next Line</p>")
 	checkPageType(t, p, "page")
 	checkPageLayout(t, p, "page/single.html", "_default/single.html", "theme/page/single.html", "theme/_default/single.html")
 	checkTruncation(t, p, true, "page with summary delimiter")
 }
 
 func TestPageWithShortCodeInSummary(t *testing.T) {
-	s := new(Site)
-	s.prepTemplates(nil)
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithShortcodeInSummary))
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithShortcodeInSummary)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
-	p.Convert()
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
 
 	checkPageTitle(t, p, "Simple")
 	checkPageContent(t, p, "<p>Summary Next Line. \n<figure >\n    \n        <img src=\"/not/real\" />\n    \n    \n</figure>\n.\nMore text here.</p>\n\n<p>Some more text</p>\n")
@@ -585,74 +593,92 @@ func TestPageWithShortCodeInSummary(t *testing.T) {
 }
 
 func TestPageWithEmbeddedScriptTag(t *testing.T) {
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithEmbeddedScript))
-	p.Convert()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithEmbeddedScript)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
+
 	checkPageContent(t, p, "<script type='text/javascript'>alert('the script tags are still there, right?');</script>\n")
 }
 
 func TestPageWithAdditionalExtension(t *testing.T) {
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithAdditionalExtension))
-	p.Convert()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithAdditionalExtension)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
+
 	checkPageContent(t, p, "<p>first line.<br />\nsecond line.</p>\n\n<p>fourth line.</p>\n")
 }
 
 func TestTableOfContents(t *testing.T) {
-	p, _ := NewPage("tocpage.md")
-	_, err := p.ReadFrom(strings.NewReader(pageWithToC))
-	p.Convert()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("tocpage.md", pageWithToC)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
+
 	checkPageContent(t, p, "\n\n<p>For some moments the old man did not reply. He stood with bowed head, buried in deep thought. But at last he spoke.</p>\n\n<h2 id=\"aa\">AA</h2>\n\n<p>I have no idea, of course, how long it took me to reach the limit of the plain,\nbut at last I entered the foothills, following a pretty little canyon upward\ntoward the mountains. Beside me frolicked a laughing brooklet, hurrying upon\nits noisy way down to the silent sea. In its quieter pools I discovered many\nsmall fish, of four-or five-pound weight I should imagine. In appearance,\nexcept as to size and color, they were not unlike the whale of our own seas. As\nI watched them playing about I discovered, not only that they suckled their\nyoung, but that at intervals they rose to the surface to breathe as well as to\nfeed upon certain grasses and a strange, scarlet lichen which grew upon the\nrocks just above the water line.</p>\n\n<h3 id=\"aaa\">AAA</h3>\n\n<p>I remember I felt an extraordinary persuasion that I was being played with,\nthat presently, when I was upon the very verge of safety, this mysterious\ndeath&ndash;as swift as the passage of light&ndash;would leap after me from the pit about\nthe cylinder and strike me down. ## BB</p>\n\n<h3 id=\"bbb\">BBB</h3>\n\n<p>&ldquo;You&rsquo;re a great Granser,&rdquo; he cried delightedly, &ldquo;always making believe them little marks mean something.&rdquo;</p>\n")
 	checkPageTOC(t, p, "<nav id=\"TableOfContents\">\n<ul>\n<li>\n<ul>\n<li><a href=\"#aa\">AA</a>\n<ul>\n<li><a href=\"#aaa\">AAA</a></li>\n<li><a href=\"#bbb\">BBB</a></li>\n</ul></li>\n</ul></li>\n</ul>\n</nav>")
 }
 
 func TestPageWithMoreTag(t *testing.T) {
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithSummaryDelimiterSameLine))
-	p.Convert()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithSummaryDelimiterSameLine)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
+
 	checkPageTitle(t, p, "Simple")
 	checkPageContent(t, p, "<p>Summary Same Line</p>\n\n<p>Some more text</p>\n")
-	checkPageSummary(t, p, "<p>Summary Same Line</p>\n")
+	checkPageSummary(t, p, "<p>Summary Same Line</p>")
 	checkPageType(t, p, "page")
 	checkPageLayout(t, p, "page/single.html", "_default/single.html", "theme/page/single.html", "theme/_default/single.html")
 }
 
 func TestPageWithDate(t *testing.T) {
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageRFC3339Date))
-	p.Convert()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageRFC3339Date)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
-	d, err := time.Parse(time.RFC3339, "2013-05-17T16:59:30Z")
-	if err != nil {
-		t.Fatalf("Unable to prase page.")
-	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
+	d, _ := time.Parse(time.RFC3339, "2013-05-17T16:59:30Z")
+
 	checkPageDate(t, p, d)
 }
 
 func TestWordCountWithAllCJKRunesWithoutHasCJKLanguage(t *testing.T) {
 	testCommonResetState()
+	s := newSiteFromSources("simple.md", simplePageWithAllCJKRunes)
 
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithAllCJKRunes))
-	p.Convert()
-	p.analyzePage()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
 
 	if p.WordCount != 8 {
 		t.Fatalf("incorrect word count for content '%s'. expected %v, got %v", p.plain, 8, p.WordCount)
@@ -664,13 +690,15 @@ func TestWordCountWithAllCJKRunesHasCJKLanguage(t *testing.T) {
 
 	viper.Set("HasCJKLanguage", true)
 
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithAllCJKRunes))
-	p.Convert()
-	p.analyzePage()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithAllCJKRunes)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
 
 	if p.WordCount != 15 {
 		t.Fatalf("incorrect word count for content '%s'. expected %v, got %v", p.plain, 15, p.WordCount)
@@ -682,13 +710,15 @@ func TestWordCountWithMainEnglishWithCJKRunes(t *testing.T) {
 
 	viper.Set("HasCJKLanguage", true)
 
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithMainEnglishWithCJKRunes))
-	p.Convert()
-	p.analyzePage()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithMainEnglishWithCJKRunes)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
 
 	if p.WordCount != 74 {
 		t.Fatalf("incorrect word count for content '%s'. expected %v, got %v", p.plain, 74, p.WordCount)
@@ -705,13 +735,15 @@ func TestWordCountWithIsCJKLanguageFalse(t *testing.T) {
 
 	viper.Set("HasCJKLanguage", true)
 
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithIsCJKLanguageFalse))
-	p.Convert()
-	p.analyzePage()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithIsCJKLanguageFalse)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
 
 	if p.WordCount != 75 {
 		t.Fatalf("incorrect word count for content '%s'. expected %v, got %v", p.plain, 75, p.WordCount)
@@ -724,13 +756,15 @@ func TestWordCountWithIsCJKLanguageFalse(t *testing.T) {
 }
 
 func TestWordCount(t *testing.T) {
-	p, _ := NewPage("simple.md")
-	_, err := p.ReadFrom(strings.NewReader(simplePageWithLongContent))
-	p.Convert()
-	p.analyzePage()
-	if err != nil {
-		t.Fatalf("Unable to create a page with frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", simplePageWithLongContent)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
 
 	if p.WordCount != 483 {
 		t.Fatalf("incorrect word count. expected %v, got %v", 483, p.WordCount)
@@ -1049,14 +1083,17 @@ func TestPageSimpleMethods(t *testing.T) {
 }
 
 func TestChompBOM(t *testing.T) {
-	p, _ := NewPage("simple.md")
 	const utf8BOM = "\xef\xbb\xbf"
-	_, err := p.ReadFrom(strings.NewReader(utf8BOM + simplePage))
-	p.Convert()
 
-	if err != nil {
-		t.Fatalf("Unable to create a page with BOM prefixed frontmatter and body content: %s", err)
+	s := newSiteFromSources("simple.md", utf8BOM+simplePage)
+
+	if err := buildSiteSkipRender(s); err != nil {
+		t.Fatalf("Failed to build site: %s", err)
 	}
+
+	require.Len(t, s.Pages, 1)
+
+	p := s.Pages[0]
 
 	checkPageTitle(t, p, "Simple")
 }

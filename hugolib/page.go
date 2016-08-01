@@ -70,7 +70,7 @@ type Page struct {
 	linkTitle           string
 	frontmatter         []byte
 	rawContent          []byte
-	contentShortCodes   map[string]string // TODO(bep) this shouldn't be needed.
+	contentShortCodes   map[string]func() (string, error)
 	shortcodes          map[string]shortcode
 	plain               string // TODO should be []byte
 	plainWords          []string
@@ -212,46 +212,63 @@ func (p *Page) lineNumRawContentStart() int {
 	return bytes.Count(p.frontmatter, []byte("\n")) + 1
 }
 
-func (p *Page) setSummary() {
-
-	// at this point, p.rawContent contains placeholders for the short codes,
-	// rendered and ready in p.contentShortcodes
-
-	if bytes.Contains(p.rawContent, helpers.SummaryDivider) {
-		sections := bytes.Split(p.rawContent, helpers.SummaryDivider)
-		header := sections[0]
-		p.Truncated = true
-		if len(sections[1]) < 20 {
-			// only whitespace?
-			p.Truncated = len(bytes.Trim(sections[1], " \n\r")) > 0
-		}
-
-		// TODO(bep) consider doing this once only
-		renderedHeader := p.renderBytes(header)
-		if len(p.contentShortCodes) > 0 {
-			tmpContentWithTokensReplaced, err :=
-				replaceShortcodeTokens(renderedHeader, shortcodePlaceholderPrefix, p.contentShortCodes)
-			if err != nil {
-				jww.FATAL.Printf("Failed to replace short code tokens in Summary for %s:\n%s", p.BaseFileName(), err.Error())
-			} else {
-				renderedHeader = tmpContentWithTokensReplaced
-			}
-		}
-		p.Summary = helpers.BytesToHTML(renderedHeader)
-	} else {
-		// If hugo defines split:
-		// render, strip html, then split
-		var summary string
-		var truncated bool
-		if p.isCJKLanguage {
-			summary, truncated = helpers.TruncateWordsByRune(p.PlainWords(), helpers.SummaryLength)
-		} else {
-			summary, truncated = helpers.TruncateWordsToWholeSentence(p.PlainWords(), helpers.SummaryLength)
-		}
-		p.Summary = template.HTML(summary)
-		p.Truncated = truncated
-
+func (p *Page) setUserDefinedSummaryIfProvided() (bool, error) {
+	if !bytes.Contains(p.rawContent, helpers.SummaryDivider) {
+		return false, nil
 	}
+
+	mainSectionIdx := bytes.Index(p.rawContent, helpers.SummaryDivider)
+
+	header := append([]byte(nil), p.rawContent[:mainSectionIdx]...)
+	main := p.rawContent[mainSectionIdx:]
+
+	if bytes.HasPrefix(p.rawContent[mainSectionIdx+len(helpers.SummaryDivider):], []byte("</p>")) {
+		header = append(header, []byte("</p>")...)
+	}
+
+	header = bytes.TrimSpace(header)
+
+	p.Truncated = true
+	if len(main) < 20 {
+		// only whitespace?
+		p.Truncated = len(bytes.Trim(main, " \n\r")) > 0
+	}
+
+	// TODO(bep) consider doing this once only
+	/*renderedHeader := p.renderBytes(header)
+	if len(p.contentShortCodes) > 0 {
+		// TODO(bep) ml will do this later later
+		// TODO(bep) ml all of this will have to move ...
+		shortcodes, err := executeShortcodeFuncMap(p.contentShortCodes)
+		if err != nil {
+			return false, err
+		}
+		tmpContentWithTokensReplaced, err :=
+			replaceShortcodeTokens(renderedHeader, shortcodePlaceholderPrefix, shortcodes)
+		if err != nil {
+			jww.FATAL.Printf("Failed to replace short code tokens in Summary for %s:\n%s", p.BaseFileName(), err.Error())
+		} else {
+			renderedHeader = tmpContentWithTokensReplaced
+		}
+	}*/
+	p.Summary = helpers.BytesToHTML(header)
+
+	return true, nil
+}
+
+func (p *Page) setAutoSummary() error {
+
+	var summary string
+	var truncated bool
+	if p.isCJKLanguage {
+		summary, truncated = helpers.TruncateWordsByRune(p.PlainWords(), helpers.SummaryLength)
+	} else {
+		summary, truncated = helpers.TruncateWordsToWholeSentence(p.PlainWords(), helpers.SummaryLength)
+	}
+	p.Summary = template.HTML(summary)
+	p.Truncated = truncated
+
+	return nil
 }
 
 func (p *Page) renderBytes(content []byte) []byte {
@@ -970,27 +987,6 @@ func (p *Page) ProcessShortcodes(t tpl.Template) {
 		p.contentShortCodes = renderShortcodes(p.shortcodes, p, t)
 	}
 
-}
-
-// TODO(spf13): Remove this entirely
-// Here for backwards compatibility & testing. Only works in isolation
-func (p *Page) Convert() error {
-	var h Handler
-	if p.Markup != "" {
-		h = FindHandler(p.Markup)
-	} else {
-		h = FindHandler(p.File.Extension())
-	}
-	if h != nil {
-		h.PageConvert(p, tpl.T())
-	}
-
-	//// now we know enough to create a summary of the page and count some words
-	p.setSummary()
-	//analyze for raw stats
-	p.analyzePage()
-
-	return nil
 }
 
 func (p *Page) FullFilePath() string {
